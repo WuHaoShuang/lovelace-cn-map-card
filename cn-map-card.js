@@ -170,7 +170,7 @@ class GaodeMapCard extends HTMLElement {
     d.style.paddingBottom = 100*(this.config.aspect_ratio||1)+"%";
   }
   _loadMap(config){
-    
+    this.oldentities = []
     AMapLoader.load(config).then(()=>{
       let mapContainer = this.root.querySelector("#container");
       this.map = new AMap.Map(mapContainer,{
