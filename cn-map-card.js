@@ -1,7 +1,7 @@
 console.info("%c  GAODE MAP CARD  \n%c Version 1.2.7 ",
 "color: orange; font-weight: bold; background: black", 
 "color: white; font-weight: bold; background: dimgray");
-
+window._AMapSecurityConfig = { securityJsCode:'98273e0e4992a216a75a15cdfebc4b64'}
 import 'https://webapi.amap.com/loader.js';
 import './w3color.js';
 
@@ -27,7 +27,7 @@ class GaodeMapCard extends HTMLElement {
     this.loadst = false;
     
     this.oldentities = []
-    this.old_mode;
+    this.old_Style;
     this.theme;
     this.positions = {};
     this._colors = [
@@ -88,7 +88,7 @@ class GaodeMapCard extends HTMLElement {
   }
   static getStubConfig() {
     return {aspect_ratio: '1',
-            dark_mode: "auto",
+            style: "normal",
             traffic: false,
             entities: ["zone.home"] }
   }
@@ -140,38 +140,14 @@ class GaodeMapCard extends HTMLElement {
     }
 
     //更新式样
-    let dark_mode = this.config.dark_mode;
-    let newTheme = hass.themes.default_theme;
-    let style = dark_mode;
-    
-    if(this.old_mode!=dark_mode){
-      if(dark_mode!="auto"){
+    let style = this.config.style;
+
+    if(this.old_Style!=style){
         this.map.setMapStyle("amap://styles/"+style);
         this.root.querySelector("#map").className = style;
-        this.old_mode = dark_mode;
-      }else{
-        let cardColor = hass.themes.themes[newTheme]["primary-background-color"] || "#FFFFF";
-        let lightness = cardColor?w3color(cardColor).lightness:1;
-        let colorDark = lightness<0.5?true:false;
-        style = colorDark?'dark':'normal';
-        this.map.setMapStyle("amap://styles/"+style);
-        this.root.querySelector("#map").className = style;
-        this.old_mode = dark_mode;
-        this.theme=hass.themes.default_theme;
-      }
+        this.old_Style = style;
     }
-    if(dark_mode==="auto"){
-      if(this.theme!=newTheme){
-        let cardColor = hass.themes.themes[newTheme]["primary-background-color"] || "#FFFFF";
-        let lightness = cardColor?w3color(cardColor).lightness:1;
-        let colorDark = lightness<0.5?true:false;
-        style = colorDark?'dark':'normal';
-        this.map.setMapStyle("amap://styles/"+style);
-        this.root.querySelector("#map").className = style;
-        this.old_mode = dark_mode;
-        this.theme=hass.themes.default_theme;
-      }
-    }
+
     //实时路况图层
     if(this.config.traffic){
       this.trafficLayer.show();
@@ -199,11 +175,11 @@ class GaodeMapCard extends HTMLElement {
       let mapContainer = this.root.querySelector("#container");
       this.map = new AMap.Map(mapContainer,{
         viewMode: '3D',
-        zoom: this.config.default_zoom || 9
+        zoom: this.config.default_zoom || 9,
+        center:[this._hass.config.longitude, this._hass.config.latitude]
       });
-      let mode = this.config.dark_mode;
-      let style = (mode==="auto")?"normal":mode;
-      this.old_mode = mode;
+      let style = this.config.style;
+      this.old_Style = style;
       this.map.setMapStyle("amap://styles/"+style);
       this.root.querySelector("#map").className = style;
       
@@ -213,6 +189,7 @@ class GaodeMapCard extends HTMLElement {
       });
       this.trafficLayer.setMap(this.map);
       this.loaded = true;
+      this.hass = this._hass
     }).catch(e => {
         console.log(e);
     })
@@ -257,6 +234,7 @@ class GaodeMapCard extends HTMLElement {
       this.fit++;
       return
     } 
+
     let gps = new AMap.LngLat(objstates.attributes.longitude, objstates.attributes.latitude);
     let that = this;
     if(type=='gaode'){
@@ -266,6 +244,9 @@ class GaodeMapCard extends HTMLElement {
         // console.info(result.locations[0])
         if (result.info === 'ok') {
           that._showMarker(result.locations[0],entity,color,type);
+        }
+        else { 
+          console.info("%c 地图加载异常:%o", "color: white; font-weight: bold; background: dimgray",result); 
         }
       });
     }
@@ -279,7 +260,6 @@ class GaodeMapCard extends HTMLElement {
     let entityPicture = objstates.attributes.entity_picture || '';
     let entityName =objstates.attributes.friendly_name?objstates.attributes.friendly_name.split(' ').map(function (part) { return part.substr(0, 1); }).join('') : '';
     let markerContent = `<ha-entity-marker width="20" height="20" entity-id="`+entity+`" entity-name="`+entityName+`" entity-picture="`+entityPicture+`" entity-color="`+color+`"></ha-entity-marker>`
-
     //区域
     var circle = new AMap.Circle({
       center: result,  // 圆心位置
@@ -520,7 +500,7 @@ export class GaodeMapCardEditor extends LitElement {
       return html``;
     }
 
-    let dark_mode = this.config.dark_mode
+    let style = this.config.style
     return html`
       <div class="card-config">
         <paper-input
@@ -561,16 +541,13 @@ export class GaodeMapCardEditor extends LitElement {
             @change="${this._valueChanged}"
           ></paper-input>
         </div>
-        <div class="side-by-side">
-          <mwc-formfield label="白天模式">
-              <mwc-radio id="b1" ?checked=${(dark_mode==='normal')} value="normal" name="style_mode" .configValue="${"dark_mode"}" @change="${this._valueChanged}"></mwc-radio>
-          </mwc-formfield>
-          <mwc-formfield label="夜间模式">
-              <mwc-radio id="b2" ?checked=${(dark_mode==='dark')} value="dark" name="style_mode" .configValue="${"dark_mode"}" @change="${this._valueChanged}"></mwc-radio>
-          </mwc-formfield>
-          <mwc-formfield label="跟随主题">
-              <mwc-radio id="b3" ?checked=${(dark_mode==='auto')} value="auto" name="style_mode" .configValue="${"dark_mode"}" @change="${this._valueChanged}"></mwc-radio>
-          </mwc-formfield>
+        <div class="gaode_key">
+          <paper-input
+            label="地图样式"
+            .value="${this.config.style}"
+            .configValue="${"style"}"
+            @value-changed="${this._valueChanged}"
+          ></paper-input>
         </div>
         <hui-entity-editor
           .hass="${this.hass}"
